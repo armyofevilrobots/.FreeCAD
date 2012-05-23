@@ -3,24 +3,11 @@ import Part
 
 from PyQt4 import QtCore, QtGui
 
-def errorDialog(msg):
-    # Create a simple dialog QMessageBox
-    # The first argument indicates the icon used: one of QtGui.QMessageBox.{NoIcon, Information, Warning, Critical, Question} 
-    diag = QtGui.QMessageBox(QtGui.QMessageBox.Warning, 'Error in macro MessageBox', msg)
-    diag.setWindowModality(QtCore.Qt.ApplicationModal)
-    diag.exec_()
-
-msg = 'Example of warning message'
-#errorDialog(msg)
-#raise(Exception(msg))
-
-print "This is a macro."
-
-def menger(size = 100, iterations = 3, base = None):
+def menger(size = 100, iterations = 3, base = None, callback = None):
     base = base or Part.makeBox(size,size,size)
     sumshape = None
     for x in range(3):
-        for y in (0,2,1):
+        for y in range(3):
             for z in range(3):
                 if not (x,y,z) in [
                     (1,1,1), 
@@ -28,32 +15,77 @@ def menger(size = 100, iterations = 3, base = None):
                     (1,0,1), (1,2,1), 
                     (2,1,1), (0,1,1)]:
                     newshape = base.copy()
-                    #newobj = FreeCAD.ActiveDocument.addObject(
-                    #    'Part::Feature', 
-                    #    "menger-%d-%d.%d.%d" % (iterations, x, y, z))
                     newshape.translate(FreeCAD.Base.Vector (size*x, size*y, size*z))
-                    #newobj.Shape = newshape 
-                    print dir(newshape)
                     if sumshape is None:
                         sumshape = newshape
                     else:
                         sumshape = sumshape.fuse(newshape)
+                    if callable(callback):
+                        callback((x*y*z)/iterations)
     txmat = FreeCAD.Base.Matrix()
     txmat.scale(1.0/3, 1.0/3, 1.0/3)
     sumshape.transformShape(txmat)
     if iterations > 1:
-        return menger(size, iterations - 1, sumshape.removeSplitter())
+        return menger(size, iterations - 1, sumshape).removeSplitter()
     else:
         return sumshape.removeSplitter() 
                         
 
-    
-msh = menger(iterations = 2)
-newobj = FreeCAD.ActiveDocument.addObject(
-   'Part::Feature', 
-   "menger")
-newobj.Shape=msh
-             
+def shape2menger(shape):
+    newobj = FreeCAD.ActiveDocument.addObject(
+           'Part::Feature', 
+           "menger")
+    newobj.Shape=shape
+
+
+def gen_menger_dialog():
+    dialog = QtGui.QDialog()
+    dialog.resize(200,300)
+    dialog.setWindowTitle("Menger Generator")
+    dlout = QtGui.QVBoxLayout(dialog)
+    iter_label = QtGui.QLabel("number of iterations (>3 is SLOW)")
+    dlout.addWidget(iter_label)
+    menger_iter = QtGui.QSpinBox()
+    menger_iter.setRange(1,6)
+    dlout.addWidget(menger_iter)
+    size_label = QtGui.QLabel("Dimension(size) of Menger")
+    dlout.addWidget(size_label)
+    menger_size = QtGui.QDoubleSpinBox()
+    dlout.addWidget(menger_size)
+    menger_size.setRange(0.001,1000.0)
+    menger_size.setSingleStep(10.0)
+    menger_size.setValue(100.0)
+    okbox = QtGui.QDialogButtonBox(dialog)
+    okbox.setOrientation(QtCore.Qt.Horizontal)
+    okbox.setStandardButtons(QtGui.QDialogButtonBox.Cancel|QtGui.QDialogButtonBox.Ok)
+    dlout.addWidget(okbox)
+
+    def do_eet():
+        """Actually generate the menger"""
+        tmpdia = QtGui.QProgressDialog("Building Menger of n=%d" % (menger_iter.value()), "No Abort, sorry!", 0, menger_iter.value()*9.0, dialog.parentWidget())
+
+        def cb(val):
+            """Updates the progress"""
+            tmpdia.setValue(val)
+            tmpdia.repaint()
+
+        dialog.hide()
+        tmpdia.show()
+        shape2menger(
+                menger(
+                    iterations = menger_iter.value(), 
+                    size = menger_size.value(),
+                    callback = cb))
+        tmpdia.hide()
+
+    QtCore.QObject.connect(okbox, QtCore.SIGNAL("accepted()"), do_eet)
+    QtCore.QObject.connect(okbox, QtCore.SIGNAL("rejected()"), dialog.hide)
+    QtCore.QMetaObject.connectSlotsByName(dialog)
+    return dialog
+
+dialog = gen_menger_dialog()
+dialog.show()
+
                         
 						
 					
