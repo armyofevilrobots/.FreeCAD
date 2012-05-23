@@ -1,0 +1,6 @@
+This is a FREECAD config folder. 
+
+It contains (or will contain) various macros that I find
+useful. Right now I am focusing on generative geometry
+stuff, and the initial instance is a macro for creating
+Menger cubes.
